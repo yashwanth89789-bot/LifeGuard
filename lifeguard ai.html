@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LifeGuard AI | Disaster Intelligence Platform</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Leaflet Map CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --bg-panel: rgba(30, 41, 59, 0.7);
+            --primary: #00e5ff;
+            --danger: #ff4d4d;
+            --warning: #ffd700;
+            --success: #00ff9d;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --glass-border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            height: 100vh;
+            overflow: hidden;
+            background-image:
+                radial-gradient(circle at 10% 20%, rgba(0, 229, 255, 0.1) 0%, transparent 20%),
+                radial-gradient(circle at 90% 80%, rgba(255, 77, 77, 0.05) 0%, transparent 20%);
+        }
+
+        /* Utility */
+        .glass {
+            background: var(--bg-panel);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: var(--glass-border);
+        }
+
+        .flex {
+            display: flex;
+        }
+
+        .flex-col {
+            flex-direction: column;
+        }
+
+        .items-center {
+            align-items: center;
+        }
+
+        .justify-between {
+            justify-content: space-between;
+        }
+
+        .gap-2 {
+            gap: 0.5rem;
+        }
+
+        .gap-4 {
+            gap: 1rem;
+        }
+
+        .p-4 {
+            padding: 1rem;
+        }
+
+        .text-sm {
+            font-size: 0.875rem;
+        }
+
+        .text-xs {
+            font-size: 0.75rem;
+        }
+
+        .font-bold {
+            font-weight: 700;
+        }
+
+        .text-primary {
+            color: var(--primary);
+        }
+
+        .text-danger {
+            color: var(--danger);
+        }
+
+        .text-success {
+            color: var(--success);
+        }
+
+        .w-full {
+            width: 100%;
+        }
+
+        .h-full {
+            height: 100%;
+        }
+
+        /* Layout */
+        #app {
+            display: grid;
+            grid-template-columns: 350px 1fr 350px;
+            grid-template-rows: 70px 1fr;
+            height: 100vh;
+            gap: 1rem;
+            padding: 1rem;
+        }
+
+        /* Header */
+        header {
+            grid-column: 1 / -1;
+            border-radius: 12px;
+            padding: 0 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            letter-spacing: -0.5px;
+        }
+
+        .logo i {
+            background: linear-gradient(135deg, var(--primary), #2979ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .status-badge {
+            background: rgba(0, 255, 157, 0.1);
+            color: var(--success);
+            padding: 0.4rem 1rem;
+            border-radius: 50px;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 600;
+            border: 1px solid rgba(0, 255, 157, 0.2);
+        }
+
+        .pulse {
+            width: 8px;
+            height: 8px;
+            background-color: var(--success);
+            border-radius: 50%;
+            box-shadow: 0 0 0 0 rgba(0, 255, 157, 0.7);
+            animation: pulse-green 2s infinite;
+        }
+
+        @keyframes pulse-green {
+            0% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(0, 255, 157, 0.7);
+            }
+
+            70% {
+                transform: scale(1);
+                box-shadow: 0 0 0 10px rgba(0, 255, 157, 0);
+            }
+
+            100% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(0, 255, 157, 0);
+            }
+        }
+
+        /* Panels */
+        .panel {
+            border-radius: 12px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel-header {
+            padding: 1rem;
+            border-bottom: var(--glass-border);
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .panel-content {
+            padding: 1rem;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        /* Map */
+        #map-container {
+            grid-column: 2;
+            grid-row: 2;
+            border-radius: 12px;
+            position: relative;
+            z-index: 1;
+            box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5);
+            border: var(--glass-border);
+        }
+
+        #map {
+            height: 100%;
+            width: 100%;
+            border-radius: 12px;
+            background: #0f172a;
+            /* Fallback */
+        }
+
+        /* Overlays on Map */
+        .map-overlay {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            z-index: 1000;
+            padding: 0.75rem;
+            border-radius: 8px;
+        }
+
+        /* Controls */
+        .btn {
+            background: linear-gradient(135deg, var(--primary), #2979ff);
+            border: none;
+            color: white;
+            padding: 0.8rem;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            width: 100%;
+            margin-bottom: 0.75rem;
+            box-shadow: 0 4px 15px rgba(0, 229, 255, 0.3);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 229, 255, 0.4);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ff4d4d, #f50057);
+            box-shadow: 0 4px 15px rgba(255, 77, 77, 0.3);
+        }
+
+        .btn-danger:hover {
+            box-shadow: 0 6px 20px rgba(255, 77, 77, 0.4);
+        }
+
+        /* List Items */
+        .data-item {
+            padding: 0.75rem;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+            border-left: 3px solid var(--text-muted);
+            transition: all 0.3s;
+        }
+
+        .data-item:hover {
+            background: rgba(255, 255, 255, 0.07);
+        }
+
+        .data-item.alert-high {
+            border-left-color: var(--danger);
+            background: linear-gradient(90deg, rgba(255, 77, 77, 0.1) 0%, transparent 100%);
+        }
+
+        .data-item.alert-med {
+            border-left-color: var(--warning);
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.03);
+            padding: 0.75rem;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin: 0.25rem 0;
+        }
+
+        .stat-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Notifications/Logs */
+        .log-entry {
+            font-family: 'Courier New', monospace;
+            font-size: 0.75rem;
+            margin-bottom: 0.4rem;
+            opacity: 0.8;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding-bottom: 0.2rem;
+        }
+
+        .log-time {
+            color: var(--primary);
+            margin-right: 0.5rem;
+        }
+
+        /* Modal */
+        #alert-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(5px);
+            z-index: 9999;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: var(--bg-dark);
+            border: 1px solid var(--danger);
+            width: 500px;
+            border-radius: 16px;
+            padding: 2rem;
+            text-align: center;
+            box-shadow: 0 0 50px rgba(255, 77, 77, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .modal-content::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 5px;
+            background: var(--danger);
+        }
+
+        .alert-icon {
+            font-size: 3rem;
+            color: var(--danger);
+            margin-bottom: 1rem;
+            animation: shake 0.5s infinite;
+        }
+
+        @keyframes shake {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            25% {
+                transform: rotate(10deg);
+            }
+
+            75% {
+                transform: rotate(-10deg);
+            }
+
+            100% {
+                transform: rotate(0deg);
+            }
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        /* Leaflet Dark Mode Customization */
+        .leaflet-tile {
+            filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="app">
+        <!-- Header -->
+        <header class="glass">
+            <div class="logo">
+                <i class="fa-solid fa-heart-pulse"></i> LifeGuard AI
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="text-sm text-muted">
+                    <i class="fa-solid fa-satellite-dish"></i> SAT-LINK: <span class="text-success">Connected</span>
+                </div>
+                <div class="status-badge">
+                    <div class="pulse"></div> AI MONITORING ACTIVE
+                </div>
+            </div>
+        </header>
+
+        <!-- Sidebar: Controls & Live Data -->
+        <aside class="panel glass">
+            <div class="panel-header">
+                <i class="fa-solid fa-microchip"></i> AI Control Center
+            </div>
+            <div class="panel-content">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value text-primary">850ms</div>
+                        <div class="stat-label">Prediction Speed</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value text-success">98.2%</div>
+                        <div class="stat-label">Accuracy</div>
+                    </div>
+                </div>
+
+                <button class="btn btn-danger" onclick="runSimulation()">
+                    <i class="fa-solid fa-meteor"></i> Simulate Disaster Event
+                </button>
+                <button class="btn" style="background: rgba(255, 255, 255, 0.1); box-shadow: none;"
+                    onclick="resetMap()">
+                    <i class="fa-solid fa-rotate-right"></i> Reset System
+                </button>
+
+                <div
+                    style="margin-top: 1.5rem; margin-bottom: 0.5rem; font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">
+                    Safety Protocols
+                </div>
+
+                <div class="data-item flex items-center justify-between">
+                    <span><i class="fa-solid fa-truck-medical text-primary"></i> Ambulances</span>
+                    <span class="text-xs text-muted">Auto-Dispatch</span>
+                    <div style="width: 8px; height: 8px; background: var(--success); border-radius: 50%;"></div>
+                </div>
+                <div class="data-item flex items-center justify-between">
+                    <span><i class="fa-solid fa-droplet text-danger"></i> Blood Banks</span>
+                    <span class="text-xs text-muted">Alerted</span>
+                    <div style="width: 8px; height: 8px; background: var(--success); border-radius: 50%;"></div>
+                </div>
+                <div class="data-item flex items-center justify-between">
+                    <span><i class="fa-solid fa-tower-broadcast text-warning"></i> SMS Alert</span>
+                    <span class="text-xs text-muted">Multilingual</span>
+                    <div style="width: 8px; height: 8px; background: var(--success); border-radius: 50%;"></div>
+                </div>
+
+            </div>
+        </aside>
+
+        <!-- Main Map -->
+        <main id="map-container">
+            <div id="map"></div>
+            <div class="map-overlay glass">
+                <div class="text-xs font-bold text-muted">ACTIVE ZONES</div>
+                <div id="active-zone-count" class="text-xl font-bold">0</div>
+            </div>
+        </main>
+
+        <!-- Right Panel: Logs & Response -->
+        <aside class="panel glass">
+            <div class="panel-header">
+                <i class="fa-solid fa-clipboard-list"></i> Real-time Logs
+            </div>
+            <div class="panel-content" id="log-container">
+                <div class="log-entry">
+                    <span class="log-time">[10:00:01]</span> System init complete...
+                </div>
+                <div class="log-entry">
+                    <span class="log-time">[10:00:02]</span> Connecting to weather satellites... OK
+                </div>
+                <div class="log-entry">
+                    <span class="log-time">[10:00:03]</span> Hospital availability data loaded.
+                </div>
+            </div>
+
+            <div class="panel-header" style="border-top: var(--glass-border);">
+                <i class="fa-solid fa-hospital-user"></i> Hospital Readiness
+            </div>
+            <div class="panel-content">
+                <div class="data-item">
+                    <div class="flex justify-between" style="margin-bottom: 0.25rem;">
+                        <span class="text-sm font-bold">AIIMS Delhi</span>
+                        <span class="text-xs text-success">Ready</span>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.1); height: 4px; border-radius: 2px;">
+                        <div style="width: 85%; background: var(--success); height: 100%; border-radius: 2px;"></div>
+                    </div>
+                    <div class="text-xs text-muted" style="margin-top: 0.2rem;">ICU Beds: 42 Available</div>
+                </div>
+                <div class="data-item">
+                    <div class="flex justify-between" style="margin-bottom: 0.25rem;">
+                        <span class="text-sm font-bold">Apollo Chennai</span>
+                        <span class="text-xs text-warning">Busy</span>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.1); height: 4px; border-radius: 2px;">
+                        <div style="width: 45%; background: var(--warning); height: 100%; border-radius: 2px;"></div>
+                    </div>
+                    <div class="text-xs text-muted" style="margin-top: 0.2rem;">ICU Beds: 8 Available</div>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <!-- Critical Alert Modal -->
+    <div id="alert-modal">
+        <div class="modal-content glass">
+            <i class="fa-solid fa-triangle-exclamation alert-icon"></i>
+            <h2 style="font-size: 2rem; margin-bottom: 0.5rem;">CRITICAL ALERT</h2>
+            <p class="text-muted" style="margin-bottom: 1.5rem;" id="alert-message">High severity cyclone detected.</p>
+
+            <div class="stats-grid">
+                <div class="stat-card" style="border: 1px solid var(--danger); background: rgba(255, 77, 77, 0.1);">
+                    <div class="stat-value text-danger" id="alert-severity">HIGH</div>
+                    <div class="stat-label">Severity Level</div>
+                </div>
+                <div class="stat-card" style="border: 1px solid var(--primary); background: rgba(0, 229, 255, 0.1);">
+                    <div class="stat-value text-primary" id="alert-people">12,500</div>
+                    <div class="stat-label">People Affected</div>
+                </div>
+            </div>
+
+            <div style="text-align: left; margin-top: 1rem;">
+                <div class="text-xs text-muted mb-2">AUTOMATED ACTIONS TRIGGERED:</div>
+                <div class="flex gap-2" style="flex-wrap: wrap;">
+                    <span class="status-badge"
+                        style="border-color: var(--danger); color: white; background: var(--danger);"><i
+                            class="fa-solid fa-check"></i> SMS Sent</span>
+                    <span class="status-badge"
+                        style="border-color: var(--danger); color: white; background: var(--danger);"><i
+                            class="fa-solid fa-check"></i> Hospitals Notified</span>
+                    <span class="status-badge"
+                        style="border-color: var(--danger); color: white; background: var(--danger);"><i
+                            class="fa-solid fa-check"></i> Blood Banks Alerted</span>
+                </div>
+            </div>
+
+            <button class="btn" style="margin-top: 2rem;" onclick="closeModal()">Acknowledge & Monitor</button>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <script>
+        // --- Configuration ---
+        const mapCenter = [20.5937, 78.9629]; // Center of India
+        const zoomLevel = 5;
+
+        // Locations Data (Simulation)
+        const locations = [
+            { name: "Mumbai", coords: [19.0760, 72.8777] },
+            { name: "Delhi", coords: [28.7041, 77.1025] },
+            { name: "Chennai", coords: [13.0827, 80.2707] },
+            { name: "Kolkata", coords: [22.5726, 88.3639] },
+            { name: "Bangalore", coords: [12.9716, 77.5946] },
+            { name: "Hyderabad", coords: [17.3850, 78.4867] },
+            { name: "Ahmedabad", coords: [23.0225, 72.5714] },
+            { name: "Bhubaneswar", coords: [20.2961, 85.8245] } // Often cyclone prone
+        ];
+
+        // --- State ---
+        let map;
+        let markers = [];
+        let circles = [];
+
+        // --- Initialization ---
+        function initMap() {
+            // Dark Mode Map
+            map = L.map('map', {
+                zoomControl: false,
+                attributionControl: false
+            }).setView(mapCenter, zoomLevel);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+            }).addTo(map);
+
+            // Add Zoom Control at bottom right
+            L.control.zoom({
+                position: 'bottomright'
+            }).addTo(map);
+
+            // Render Initial Safe Zones
+            locations.forEach(loc => {
+                const marker = L.circleMarker(loc.coords, {
+                    radius: 6,
+                    fillColor: "#00ff9d",
+                    color: "#00ff9d",
+                    weight: 1,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                }).addTo(map);
+
+                marker.bindPopup(`<b>${loc.name}</b><br>Status: Safe`);
+                markers.push({ ...loc, marker: marker });
+            });
+
+            addToLog("Map visualization engine ready.");
+            addToLog("Monitoring 8 major urban clusters in Bharat.");
+        }
+
+        // --- Utilities ---
+        function addToLog(message) {
+            const container = document.getElementById('log-container');
+            const time = new Date().toLocaleTimeString('en-US', { hour12: false });
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `<span class="log-time">[${time}]</span> ${message}`;
+            container.insertBefore(entry, container.firstChild);
+        }
+
+        function getRandomInt(min, max) {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        // --- Core Logic ---
+        function runSimulation() {
+            addToLog("Initiating AI Predictive Analysis...");
+
+            // Pick a random location to be the disaster epicenter
+            const target = locations[getRandomInt(0, locations.length - 1)];
+
+            // Visual effect on button
+            const btn = document.querySelector('.btn-danger');
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Analyzing...';
+
+            setTimeout(() => {
+                triggerDisaster(target);
+                btn.innerHTML = '<i class="fa-solid fa-meteor"></i> Simulate Disaster Event';
+            }, 1500);
+        }
+
+        function triggerDisaster(target) {
+            // 1. Update Map UI
+            map.flyTo(target.coords, 8, { animate: true, duration: 1.5 });
+
+            // Add impact circle
+            const circle = L.circle(target.coords, {
+                color: '#ff4d4d',
+                fillColor: '#ff4d4d',
+                fillOpacity: 0.3,
+                radius: 50000 // 50km
+            }).addTo(map);
+            circles.push(circle);
+
+            // Pulse animation effect (using CSS class on marker didn't work well with Canvas, so we swap style)
+            target.marker.setStyle({
+                fillColor: '#ff4d4d',
+                color: '#ff4d4d',
+                radius: 12
+            });
+            target.marker.bindPopup(`<b>${target.name}</b><br>Status: <span style="color:red">CRITICAL</span>`).openPopup();
+
+            // 2. Log Events
+            addToLog(`WARNING: Seismic/Weather anomaly detected near ${target.name}.`);
+            addToLog(`AI PREDICTION: Severity Index 9.2 (High).`);
+            addToLog(`ACTION: Auto-triggering 'Red Protocol' for ${target.name} region.`);
+
+            // 3. Update Dashboard Stats
+            document.getElementById('active-zone-count').innerText = circles.length;
+
+            // 4. Show Alert Modal
+            setTimeout(() => {
+                showAlert(target.name);
+            }, 1000);
+        }
+
+        function showAlert(locationName) {
+            const modal = document.getElementById('alert-modal');
+            document.getElementById('alert-message').innerText = `Critical risk threshold breached in ${locationName}. AI models predict immediate impact.`;
+            document.getElementById('alert-people').innerText = getRandomInt(5000, 50000).toLocaleString();
+            modal.style.display = 'flex';
+
+            // Play notification sound (simulated by console log for ethical randomness)
+            console.log("playing alert sound");
+        }
+
+        function closeModal() {
+            document.getElementById('alert-modal').style.display = 'none';
+            addToLog("Authority acknowledgement received.");
+            addToLog("Real-time resource bridging active...");
+        }
+
+        function resetMap() {
+            // Remove circles
+            circles.forEach(c => map.removeLayer(c));
+            circles = [];
+
+            // Reset markers
+            markers.forEach(m => {
+                m.marker.setStyle({
+                    fillColor: "#00ff9d",
+                    color: "#00ff9d",
+                    radius: 6
+                });
+                m.marker.closePopup();
+                m.marker.bindPopup(`<b>${m.name}</b><br>Status: Safe`);
+            });
+
+            // Reset View
+            map.flyTo(mapCenter, zoomLevel);
+            document.getElementById('active-zone-count').innerText = "0";
+            addToLog("System reset. Returning to standard monitoring mode.");
+        }
+
+        // Run Init
+        window.onload = initMap;
+
+    </script>
+</body>
+
+</html>
