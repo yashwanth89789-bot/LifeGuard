@@ -67,10 +67,13 @@ class ProductionConfig(Config):
     """Production configuration"""
     DEBUG = False
     FLASK_ENV = 'production'
-    # In production, require proper secret key
-    SECRET_KEY = os.getenv('SECRET_KEY')
-    if not SECRET_KEY:
-        raise ValueError("SECRET_KEY must be set in production")
+
+    @property
+    def SECRET_KEY(self):
+        key = os.getenv('SECRET_KEY')
+        if not key:
+            raise ValueError("SECRET_KEY environment variable must be set in production")
+        return key
 
 
 class TestingConfig(Config):

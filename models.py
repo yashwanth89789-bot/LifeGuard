@@ -1,277 +1,113 @@
 """
-LifeGuard AI - SMS Alert Service
-Low-bandwidth communication using Twilio
+LifeGuard AI - Database Models
 """
 
-import os
+from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
-from twilio.rest import Client
-from twilio.base.exceptions import TwilioRestException
-from config import get_config
-from translations import get_sms_template
-import logging
+import json
 
-logger = logging.getLogger(__name__)
+db = SQLAlchemy()
 
-class SMSService:
-    """SMS service for sending disaster alerts"""
-    
-    def __init__(self):
-        config = get_config()
-        self.account_sid = config.TWILIO_ACCOUNT_SID
-        self.auth_token = config.TWILIO_AUTH_TOKEN
-        self.from_number = config.TWILIO_PHONE_NUMBER
-        
-        # Initialize Twilio client if credentials are available
-        if self.account_sid and self.auth_token:
-            try:
-                self.client = Client(self.account_sid, self.auth_token)
-                self.enabled = True
-                logger.info("SMS Service initialized with Twilio")
-            except Exception as e:
-                logger.error(f"Failed to initialize Twilio client: {e}")
-                self.enabled = False
-        else:
-            self.enabled = False
-            logger.warning("SMS Service disabled - Twilio credentials not configured")
-    
-    def send_sms(self, to_number, message, language='en'):
-        """
-        Send SMS to a phone number
-        
-        Args:
-            to_number: Recipient phone number (with country code)
-            message: Message text
-            language: Language code for logging
-            
-        Returns:
-            dict: Status and message ID or error
-        """
-        if not self.enabled:
-            logger.info(f"[MOCK SMS] To: {to_number}, Message: {message}")
-            return {
-                'success': True,
-                'status': 'mock_sent',
-                'message': 'SMS service not configured, message logged only',
-                'sid': f'MOCK-{datetime.now().timestamp()}'
-            }
-        
-        try:
-            # Ensure phone number format
-            if not to_number.startswith('+'):
-                to_number = '+91' + to_number  # Default to India
-            
-            # Send SMS via Twilio
-            message_instance = self.client.messages.create(
-                body=message,
-                from_=self.from_number,
-                to=to_number
-            )
-            
-            logger.info(f"SMS sent successfully to {to_number}, SID: {message_instance.sid}")
-            
-            return {
-                'success': True,
-                'status': 'sent',
-                'sid': message_instance.sid,
-                'to': to_number,
-                'message': message
-            }
-            
-        except TwilioRestException as e:
-            logger.error(f"Twilio error sending SMS to {to_number}: {e}")
-            return {
-                'success': False,
-                'status': 'failed',
-                'error': str(e),
-                'to': to_number
-            }
-        except Exception as e:
-            logger.error(f"Error sending SMS to {to_number}: {e}")
-            return {
-                'success': False,
-                'status': 'error',
-                'error': str(e),
-                'to': to_number
-            }
-    
-    def send_disaster_alert(self, to_number, disaster_type, region, severity, language='en'):
-        """
-        Send disaster alert SMS
-        
-        Args:
-            to_number: Recipient phone number
-            disaster_type: Type of disaster (cyclone, flood, etc.)
-            region: Affected region
-            severity: Severity level (1-5)
-            language: Language code
-            
-        Returns:
-            dict: Send status
-        """
-        message = get_sms_template(
-            disaster_type,
-            language=language,
-            region=region,
-            severity=severity
-        )
-        
-        return self.send_sms(to_number, message, language)
-    
-    def send_blood_donor_alert(self, to_number, blood_type, region, disaster, contact_phone, language='en'):
-        """
-        Send blood donor activation alert
-        
-        Args:
-            to_number: Donor phone number
-            blood_type: Required blood type
-            region: Region needing blood
-            disaster: Disaster type
-            contact_phone: Contact number for blood bank
-            language: Language code
-            
-        Returns:
-            dict: Send status
-        """
-        message = get_sms_template(
-            'blood_donor',
-            language=language,
-            blood_type=blood_type,
-            region=region,
-            disaster=disaster,
-            phone=contact_phone
-        )
-        
-        return self.send_sms(to_number, message, language)
-    
-    def send_bulk_sms(self, recipients, message_template, **template_vars):
-        """
-        Send bulk SMS to multiple recipients
-        
-        Args:
-            recipients: List of dicts with 'phone' and optional 'language'
-            message_template: Message template key
-            **template_vars: Variables for template formatting
-            
-        Returns:
-            dict: Summary of sent messages
-        """
-        results = {
-            'total': len(recipients),
-            'sent': 0,
-            'failed': 0,
-            'details': []
-        }
-        
-        for recipient in recipients:
-            phone = recipient.get('phone')
-            language = recipient.get('language', 'en')
-            
-            # Format message with template
-            message = get_sms_template(message_template, language=language, **template_vars)
-            
-            # Send SMS
-            result = self.send_sms(phone, message, language)
-            
-            if result['success']:
-                results['sent'] += 1
-            else:
-                results['failed'] += 1
-            
-            results['details'].append({
-                'phone': phone,
-                'language': language,
-                'status': result['status'],
-                'sid': result.get('sid')
-            })
-        
-        logger.info(f"Bulk SMS: {results['sent']}/{results['total']} sent successfully")
-        return results
-    
-    def get_sms_status(self, message_sid):
-        """
-        Check delivery status of an SMS
-        
-        Args:
-            message_sid: Twilio message SID
-            
-        Returns:
-            dict: Message status
-        """
-        if not self.enabled:
-            return {'status': 'mock', 'message': 'SMS service not configured'}
-        
-        try:
-            message = self.client.messages(message_sid).fetch()
-            return {
-                'sid': message.sid,
-                'status': message.status,
-                'to': message.to,
-                'from': message.from_,
-                'date_sent': message.date_sent,
-                'error_code': message.error_code,
-                'error_message': message.error_message
-            }
-        except Exception as e:
-            logger.error(f"Error fetching SMS status for {message_sid}: {e}")
-            return {'status': 'error', 'error': str(e)}
+class User(db.Model):
+    __tablename__ = 'users'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.String(64), unique=True, index=True)
+    role = db.Column(db.String(20), default='donor')  # authority, hospital, donor
+    phone_number = db.Column(db.String(20))
+    language_preference = db.Column(db.String(10), default='en')
+    region = db.Column(db.String(100))
+    blood_type = db.Column(db.String(5))
+    notification_count_this_week = db.Column(db.Integer, default=0)
+    last_notification = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+class Prediction(db.Model):
+    __tablename__ = 'predictions'
+    id = db.Column(db.Integer, primary_key=True)
+    prediction_id = db.Column(db.String(64), unique=True, index=True)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    disaster_type = db.Column(db.String(50))
+    confidence = db.Column(db.Float)
+    latitude = db.Column(db.Float)
+    longitude = db.Column(db.Float)
+    radius_km = db.Column(db.Float)
+    predicted_onset = db.Column(db.DateTime)
+    severity = db.Column(db.Integer)  # 1-5
+    severity_confidence = db.Column(db.Float)
+    affected_population = db.Column(db.Integer)
+    explanation = db.Column(db.Text)
+    model_version = db.Column(db.String(20))
 
-# Global SMS service instance
-sms_service = SMSService()
+class Alert(db.Model):
+    __tablename__ = 'alerts'
+    id = db.Column(db.Integer, primary_key=True)
+    alert_id = db.Column(db.String(64), unique=True, index=True)
+    user_id = db.Column(db.String(64), db.ForeignKey('users.user_id'))
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    alert_type = db.Column(db.String(20))  # DISASTER, DONOR_REQUEST
+    message = db.Column(db.Text)
+    language = db.Column(db.String(10))
+    status = db.Column(db.String(20))  # SENT, FAILED, PENDING
+    prediction_id = db.Column(db.String(64), db.ForeignKey('predictions.prediction_id'))
 
+class BloodForecast(db.Model):
+    __tablename__ = 'blood_forecasts'
+    id = db.Column(db.Integer, primary_key=True)
+    forecast_id = db.Column(db.String(64), unique=True)
+    region = db.Column(db.String(100), index=True)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    prediction_id = db.Column(db.String(64), db.ForeignKey('predictions.prediction_id'))
+    blood_demands_json = db.Column(db.Text)  # JSON string of blood type demands
+    confidence = db.Column(db.Float)
+    shortage_detected = db.Column(db.Boolean, default=False)
 
-def send_disaster_alert_to_region(region, disaster_type, severity, language='en'):
-    """
-    Send disaster alert to all users in a region
-    (This would query database for users in region)
-    
-    Args:
-        region: Region name
-        disaster_type: Type of disaster
-        severity: Severity level
-        language: Default language
-        
-    Returns:
-        dict: Send results
-    """
-    # TODO: Query database for users in region
-    # For now, this is a placeholder
-    logger.info(f"Would send {disaster_type} alert to region: {region}, severity: {severity}")
-    
-    return {
-        'success': True,
-        'message': f'Alert scheduled for {region}',
-        'region': region,
-        'disaster_type': disaster_type,
-        'severity': severity
-    }
+    @property
+    def blood_demands(self):
+        return json.loads(self.blood_demands_json) if self.blood_demands_json else {}
 
+    @blood_demands.setter
+    def blood_demands(self, value):
+        self.blood_demands_json = json.dumps(value)
 
-def activate_blood_donors(region, blood_type, disaster_type, required_units=10):
-    """
-    Activate blood donors in a region
-    (This would query database for eligible donors)
-    
-    Args:
-        region: Region needing blood
-        blood_type: Required blood type
-        disaster_type: Disaster causing need
-        required_units: Number of blood units needed
-        
-    Returns:
-        dict: Activation results
-    """
-    # TODO: Query database for eligible blood donors
-    # Filter by blood type, location, last donation date
-    # Send SMS to eligible donors
-    
-    logger.info(f"Would activate {blood_type} donors in {region} for {disaster_type}")
-    
-    return {
-        'success': True,
-        'message': f'Blood donor activation initiated for {region}',
-        'blood_type': blood_type,
-        'required_units': required_units,
-        'donors_contacted': 0  # Would be actual count from database
-    }
+class RiskZone(db.Model):
+    __tablename__ = 'risk_zones'
+    id = db.Column(db.Integer, primary_key=True)
+    zone_id = db.Column(db.String(64), unique=True)
+    region = db.Column(db.String(100))
+    coordinates_json = db.Column(db.Text)  # JSON polygon coordinates
+    severity = db.Column(db.Integer)
+    affected_population = db.Column(db.Integer)
+    last_updated = db.Column(db.DateTime, default=datetime.utcnow)
+    color_code = db.Column(db.String(10))
+
+class Hospital(db.Model):
+    __tablename__ = 'hospitals'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200))
+    region = db.Column(db.String(100))
+    latitude = db.Column(db.Float)
+    longitude = db.Column(db.Float)
+    total_beds = db.Column(db.Integer)
+    available_beds = db.Column(db.Integer)
+    total_icu = db.Column(db.Integer)
+    available_icu = db.Column(db.Integer)
+    ventilators_available = db.Column(db.Integer)
+
+class Resource(db.Model):
+    __tablename__ = 'resources'
+    id = db.Column(db.Integer, primary_key=True)
+    resource_type = db.Column(db.String(50), unique=True)
+    total_quantity = db.Column(db.Integer)
+    available_quantity = db.Column(db.Integer)
+
+class Deployment(db.Model):
+    __tablename__ = 'deployments'
+    id = db.Column(db.Integer, primary_key=True)
+    deployment_id = db.Column(db.String(64), unique=True)
+    resource_type = db.Column(db.String(50))
+    quantity = db.Column(db.Integer)
+    target_region = db.Column(db.String(100))
+    status = db.Column(db.String(20))  # dispatched, in_transit, arrived, deployed
+    eta_hours = db.Column(db.Integer)
+    priority = db.Column(db.String(20))  # critical, high, medium
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)

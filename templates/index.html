@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LifeGuard AI | Disaster Intelligence Platform</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Leaflet Map CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --bg-panel: rgba(30, 41, 59, 0.7);
+            --primary: #00e5ff;
+            --danger: #ff4d4d;
+            --warning: #ffd700;
+            --success: #00ff9d;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --glass-border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            height: 100vh;
+            overflow: hidden;
+            background-image:
+                radial-gradient(circle at 10% 20%, rgba(0, 229, 255, 0.1) 0%, transparent 20%),
+                radial-gradient(circle at 90% 80%, rgba(255, 77, 77, 0.05) 0%, transparent 20%);
+        }
+
+        /* Utility */
+        .glass {
+            background: var(--bg-panel);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: var(--glass-border);
+        }
+
+        .flex {
+            display: flex;
+        }
+
+        .flex-col {
+            flex-direction: column;
+        }
+
+        .items-center {
+            align-items: center;
+        }
+
+        .justify-between {
+            justify-content: space-between;
+        }
+
+        .gap-2 {
+            gap: 0.5rem;
+        }
+
+        .gap-4 {
+            gap: 1rem;
+        }
+
+        .p-4 {
+            padding: 1rem;
+        }
+
+        .text-sm {
+            font-size: 0.875rem;
+        }
+
+        .text-xs {
+            font-size: 0.75rem;
+        }
+
+        .font-bold {
+            font-weight: 700;
+        }
+
+        .text-primary {
+            color: var(--primary);
+        }
+
+        .text-danger {
+            color: var(--danger);
+        }
+
+        .text-success {
+            color: var(--success);
+        }
+
+        .w-full {
+            width: 100%;
+        }
+
+        .h-full {
+            height: 100%;
+        }
+
+        /* Layout */
+        #app {
+            display: grid;
+            grid-template-columns: 350px 1fr 350px;
+            grid-template-rows: 70px 1fr;
+            height: 100vh;
+            gap: 1rem;
+            padding: 1rem;
+        }
+
+        /* Header */
+        header {
+            grid-column: 1 / -1;
+            border-radius: 12px;
+            padding: 0 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            letter-spacing: -0.5px;
+        }
+
+        .logo i {
+            background: linear-gradient(135deg, var(--primary), #2979ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .status-badge {
+            background: rgba(0, 255, 157, 0.1);
+            color: var(--success);
+            padding: 0.4rem 1rem;
+            border-radius: 50px;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 600;
+            border: 1px solid rgba(0, 255, 157, 0.2);
+        }
+
+        .pulse {
+            width: 8px;
+            height: 8px;
+            background-color: var(--success);
+            border-radius: 50%;
+            box-shadow: 0 0 0 0 rgba(0, 255, 157, 0.7);
+            animation: pulse-green 2s infinite;
+        }
+
+        @keyframes pulse-green {
+            0% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(0, 255, 157, 0.7);
+            }
+
+            70% {
+                transform: scale(1);
+                box-shadow: 0 0 0 10px rgba(0, 255, 157, 0);
+            }
+
+            100% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(0, 255, 157, 0);
+            }
+        }
+
+        /* Panels */
+        .panel {
+            border-radius: 12px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel-header {
+            padding: 1rem;
+            border-bottom: var(--glass-border);
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .panel-content {
+            padding: 1rem;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        /* Map */
+        #map-container {
+            grid-column: 2;
+            grid-row: 2;
+            border-radius: 12px;
+            position: relative;
+            z-index: 1;
+            box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5);
+            border: var(--glass-border);
+        }
+
+        #map {
+            height: 100%;
+            width: 100%;
+            border-radius: 12px;
+            background: #0f172a;
+        }
+
+        /* Overlays on Map */
+        .map-overlay {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            z-index: 1000;
+            padding: 0.75rem;
+            border-radius: 8px;
+        }
+
+        /* Controls */
+        .btn {
+            background: linear-gradient(135deg, var(--primary), #2979ff);
+            border: none;
+            color: white;
+            padding: 0.8rem;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            width: 100%;
+            margin-bottom: 0.75rem;
+            box-shadow: 0 4px 15px rgba(0, 229, 255, 0.3);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 229, 255, 0.4);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ff4d4d, #f50057);
+            box-shadow: 0 4px 15px rgba(255, 77, 77, 0.3);
+        }
+
+        /* List Items */
+        .data-item {
+            padding: 0.75rem;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+            border-left: 3px solid var(--text-muted);
+            transition: all 0.3s;
+        }
+
+        .data-item:hover {
+            background: rgba(255, 255, 255, 0.07);
+        }
+
+        .data-item.alert-high {
+            border-left-color: var(--danger);
+            background: linear-gradient(90deg, rgba(255, 77, 77, 0.1) 0%, transparent 100%);
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.03);
+            padding: 0.75rem;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin: 0.25rem 0;
+        }
+
+        .stat-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Notifications/Logs */
+        .log-entry {
+            font-family: 'Courier New', monospace;
+            font-size: 0.75rem;
+            margin-bottom: 0.4rem;
+            opacity: 0.8;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding-bottom: 0.2rem;
+        }
+
+        .log-time {
+            color: var(--primary);
+            margin-right: 0.5rem;
+        }
+
+        /* Modal */
+        #alert-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(5px);
+            z-index: 9999;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: var(--bg-dark);
+            border: 1px solid var(--danger);
+            width: 500px;
+            border-radius: 16px;
+            padding: 2rem;
+            text-align: center;
+            box-shadow: 0 0 50px rgba(255, 77, 77, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Leaflet Dark Mode Customization */
+        .leaflet-tile {
+            filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="app">
+        <!-- Header -->
+        <header class="glass">
+            <div class="logo">
+                <i class="fa-solid fa-heart-pulse"></i> LifeGuard AI
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="text-sm text-muted">
+                    <i class="fa-solid fa-satellite-dish"></i> SAT-LINK: <span class="text-success">Connected</span>
+                </div>
+                <div class="status-badge">
+                    <div class="pulse"></div> AI MONITORING ACTIVE
+                </div>
+            </div>
+        </header>
+
+        <!-- Sidebar: Controls & Live Data -->
+        <aside class="panel glass">
+            <div class="panel-header">
+                <i class="fa-solid fa-microchip"></i> AI Control Center
+            </div>
+            <div class="panel-content">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value text-primary" id="stat-pred-count">0</div>
+                        <div class="stat-label">Predictions</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value text-success" id="stat-critical-count">0</div>
+                        <div class="stat-label">Critical</div>
+                    </div>
+                </div>
+
+                <button class="btn" onclick="refreshDashboard()">
+                    <i class="fa-solid fa-rotate-right"></i> Refresh Data
+                </button>
+
+                <div
+                    style="margin-top: 1.5rem; margin-bottom: 0.5rem; font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">
+                    Healthcare Resources
+                </div>
+                <div id="resource-container">
+                    <!-- Resources will be injected here -->
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Map -->
+        <main id="map-container">
+            <div id="map"></div>
+            <div class="map-overlay glass">
+                <div class="text-xs font-bold text-muted">ACTIVE RISKS</div>
+                <div id="active-zone-count" class="text-xl font-bold">0</div>
+            </div>
+        </main>
+
+        <!-- Right Panel: Logs & Response -->
+        <aside class="panel glass">
+            <div class="panel-header">
+                <i class="fa-solid fa-clipboard-list"></i> Real-time Logs
+            </div>
+            <div class="panel-content" id="log-container">
+                <div class="log-entry"><span class="log-time">[Init]</span> Connecting to backend...</div>
+            </div>
+
+            <div class="panel-header" style="border-top: var(--glass-border);">
+                <i class="fa-solid fa-hospital-user"></i> Hospital Readiness
+            </div>
+            <div class="panel-content" id="hospital-container">
+                <!-- Hospitals will be injected here -->
+            </div>
+        </aside>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <script>
+        const mapCenter = [20.5937, 78.9629];
+        const zoomLevel = 5;
+        let map;
+        let markers = [];
+        let circles = [];
+
+        function initMap() {
+            map = L.map('map', {
+                zoomControl: false,
+                attributionControl: false
+            }).setView(mapCenter, zoomLevel);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+            }).addTo(map);
+
+            L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+            addToLog("Map initialization complete.");
+            refreshDashboard();
+        }
+
+        function addToLog(message) {
+            const container = document.getElementById('log-container');
+            const time = new Date().toLocaleTimeString('en-US', { hour12: false });
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `<span class="log-time">[${time}]</span> ${message}`;
+            container.insertBefore(entry, container.firstChild);
+        }
+
+        async function refreshDashboard() {
+            addToLog("Fetching latest intelligence from AI core...");
+            try {
+                const response = await fetch('/api/dashboard');
+                const data = await response.json();
+                updateUI(data);
+                addToLog("Dashboard synchronized successfully.");
+            } catch (error) {
+                console.error("Error fetching dashboard data:", error);
+                addToLog("Error: Failed to connect to AI backend.");
+            }
+        }
+
+        function updateUI(data) {
+            // Update Stats
+            document.getElementById('stat-pred-count').innerText = data.statistics.total_predictions;
+            document.getElementById('stat-critical-count').innerText = data.statistics.critical_predictions;
+            document.getElementById('active-zone-count').innerText = data.predictions.length;
+
+            // Update Resources
+            const resourceContainer = document.getElementById('resource-container');
+            resourceContainer.innerHTML = '';
+            for (const [key, val] of Object.entries(data.resources)) {
+                const item = document.createElement('div');
+                item.className = 'data-item flex items-center justify-between';
+                item.innerHTML = `
+                    <span>${key.replace('_', ' ').toUpperCase()}</span>
+                    <span class="text-xs text-muted">${val.available} / ${val.total}</span>
+                `;
+                resourceContainer.appendChild(item);
+            }
+
+            // Update Hospitals
+            const hospitalContainer = document.getElementById('hospital-container');
+            hospitalContainer.innerHTML = '';
+            data.statistics.hospital_readiness.forEach(h => {
+                const item = document.createElement('div');
+                item.className = 'data-item';
+                item.innerHTML = `
+                    <div class="flex justify-between" style="margin-bottom: 0.25rem;">
+                        <span class="text-sm font-bold">${h.name}</span>
+                        <span class="text-xs ${h.status === 'Ready' ? 'text-success' : 'text-danger'}">${h.status}</span>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.1); height: 4px; border-radius: 2px;">
+                        <div style="width: ${h.readiness_score}%; background: ${h.status === 'Ready' ? 'var(--success)' : 'var(--danger)'}; height: 100%; border-radius: 2px;"></div>
+                    </div>
+                    <div class="text-xs text-muted" style="margin-top: 0.2rem;">ICU Beds: ${h.available_icu} Available</div>
+                `;
+                hospitalContainer.appendChild(item);
+            });
+
+            // Update Map
+            clearMap();
+            data.predictions.forEach(p => {
+                const color = p.severity >= 4 ? '#ff4d4d' : p.severity >= 3 ? '#ffd700' : '#00e5ff';
+                const circle = L.circle([p.lat, p.lng], {
+                    color: color,
+                    fillColor: color,
+                    fillOpacity: 0.4,
+                    radius: 100000 // 100km
+                }).addTo(map);
+                circle.bindPopup(`<b>${p.disaster_type.toUpperCase()}</b><br>Severity: ${p.severity}/5<br>Confidence: ${p.confidence}%`);
+                circles.push(circle);
+            });
+        }
+
+        function clearMap() {
+            circles.forEach(c => map.removeLayer(c));
+            circles = [];
+        }
+
+        window.onload = initMap;
+    </script>
+</body>
+
+</html>
