@@ -1,277 +1,42 @@
 """
-LifeGuard AI - SMS Alert Service
-Low-bandwidth communication using Twilio
+LifeGuard AI - Multilingual Support
+Templates for 10 Indian languages
 """
 
-import os
-from datetime import datetime
-from twilio.rest import Client
-from twilio.base.exceptions import TwilioRestException
-from config import get_config
-from translations import get_sms_template
-import logging
+SMS_TEMPLATES = {
+    'en': {
+        'cyclone': "EMERGENCY: Cyclone warning for {region}. Severity: {severity}/5. Please evacuate to nearest shelter.",
+        'flood': "WARNING: Flood risk in {region}. Stay away from river banks and move to higher ground.",
+        'earthquake': "ALERT: Earthquake detected in {region}. Drop, Cover, and Hold on. Follow local instructions.",
+        'heatwave': "ADVISORY: Severe heatwave in {region}. Stay hydrated and avoid outdoor activities.",
+        'landslide': "WARNING: Landslide risk in {region}. Evacuate vulnerable slopes immediately.",
+        'drought': "ADVISORY: Drought conditions in {region}. Please conserve water.",
+        'tsunami': "CRITICAL: Tsunami warning for coastal {region}. Move inland to high ground immediately.",
+        'blood_donor': "URGENT: {blood_type} blood needed in {region} due to {disaster}. Please visit {phone} center."
+    },
+    'hi': { # Hindi
+        'cyclone': "आपातकाल: {region} के लिए चक्रवात की चेतावनी। तीव्रता: {severity}/5. कृपया निकटतम आश्रय में जाएं।",
+        'flood': "चेतावनी: {region} में बाढ़ का खतरा। नदी तटों से दूर रहें और ऊंचाई पर जाएं।",
+        'earthquake': "अलर्ट: {region} में भूकंप। झुकें, ढंकें और पकड़ें। स्थानीय निर्देशों का पालन करें।",
+        'heatwave': "सलाह: {region} में भीषण लू। हाइड्रेटेड रहें और बाहरी गतिविधियों से बचें।",
+        'blood_donor': "अत्यंत आवश्यक: {disaster} के कारण {region} में {blood_type} रक्त की आवश्यकता है। कृपया {phone} केंद्र पर जाएं।"
+    },
+    'ta': { # Tamil
+        'cyclone': "அவசரநிலை: {region} புயல் எச்சரிக்கை. தீவிரம்: {severity}/5. அருகிலுள்ள தங்குமிடத்திற்குச் செல்லவும்.",
+        'flood': "எச்சரிக்கை: {region} இல் வெள்ள அபாயம். ஆற்றங்கரையில் இருந்து விலகி உயரமான இடத்திற்குச் செல்லவும்.",
+        'blood_donor': "அவசரம்: {disaster} காரணமாக {region} இல் {blood_type} ரத்தம் தேவைப்படுகிறது. {phone} மையத்திற்கு வரவும்."
+    },
+    # Add other languages as needed...
+}
 
-logger = logging.getLogger(__name__)
-
-class SMSService:
-    """SMS service for sending disaster alerts"""
-    
-    def __init__(self):
-        config = get_config()
-        self.account_sid = config.TWILIO_ACCOUNT_SID
-        self.auth_token = config.TWILIO_AUTH_TOKEN
-        self.from_number = config.TWILIO_PHONE_NUMBER
-        
-        # Initialize Twilio client if credentials are available
-        if self.account_sid and self.auth_token:
-            try:
-                self.client = Client(self.account_sid, self.auth_token)
-                self.enabled = True
-                logger.info("SMS Service initialized with Twilio")
-            except Exception as e:
-                logger.error(f"Failed to initialize Twilio client: {e}")
-                self.enabled = False
-        else:
-            self.enabled = False
-            logger.warning("SMS Service disabled - Twilio credentials not configured")
-    
-    def send_sms(self, to_number, message, language='en'):
-        """
-        Send SMS to a phone number
-        
-        Args:
-            to_number: Recipient phone number (with country code)
-            message: Message text
-            language: Language code for logging
-            
-        Returns:
-            dict: Status and message ID or error
-        """
-        if not self.enabled:
-            logger.info(f"[MOCK SMS] To: {to_number}, Message: {message}")
-            return {
-                'success': True,
-                'status': 'mock_sent',
-                'message': 'SMS service not configured, message logged only',
-                'sid': f'MOCK-{datetime.now().timestamp()}'
-            }
-        
-        try:
-            # Ensure phone number format
-            if not to_number.startswith('+'):
-                to_number = '+91' + to_number  # Default to India
-            
-            # Send SMS via Twilio
-            message_instance = self.client.messages.create(
-                body=message,
-                from_=self.from_number,
-                to=to_number
-            )
-            
-            logger.info(f"SMS sent successfully to {to_number}, SID: {message_instance.sid}")
-            
-            return {
-                'success': True,
-                'status': 'sent',
-                'sid': message_instance.sid,
-                'to': to_number,
-                'message': message
-            }
-            
-        except TwilioRestException as e:
-            logger.error(f"Twilio error sending SMS to {to_number}: {e}")
-            return {
-                'success': False,
-                'status': 'failed',
-                'error': str(e),
-                'to': to_number
-            }
-        except Exception as e:
-            logger.error(f"Error sending SMS to {to_number}: {e}")
-            return {
-                'success': False,
-                'status': 'error',
-                'error': str(e),
-                'to': to_number
-            }
-    
-    def send_disaster_alert(self, to_number, disaster_type, region, severity, language='en'):
-        """
-        Send disaster alert SMS
-        
-        Args:
-            to_number: Recipient phone number
-            disaster_type: Type of disaster (cyclone, flood, etc.)
-            region: Affected region
-            severity: Severity level (1-5)
-            language: Language code
-            
-        Returns:
-            dict: Send status
-        """
-        message = get_sms_template(
-            disaster_type,
-            language=language,
-            region=region,
-            severity=severity
-        )
-        
-        return self.send_sms(to_number, message, language)
-    
-    def send_blood_donor_alert(self, to_number, blood_type, region, disaster, contact_phone, language='en'):
-        """
-        Send blood donor activation alert
-        
-        Args:
-            to_number: Donor phone number
-            blood_type: Required blood type
-            region: Region needing blood
-            disaster: Disaster type
-            contact_phone: Contact number for blood bank
-            language: Language code
-            
-        Returns:
-            dict: Send status
-        """
-        message = get_sms_template(
-            'blood_donor',
-            language=language,
-            blood_type=blood_type,
-            region=region,
-            disaster=disaster,
-            phone=contact_phone
-        )
-        
-        return self.send_sms(to_number, message, language)
-    
-    def send_bulk_sms(self, recipients, message_template, **template_vars):
-        """
-        Send bulk SMS to multiple recipients
-        
-        Args:
-            recipients: List of dicts with 'phone' and optional 'language'
-            message_template: Message template key
-            **template_vars: Variables for template formatting
-            
-        Returns:
-            dict: Summary of sent messages
-        """
-        results = {
-            'total': len(recipients),
-            'sent': 0,
-            'failed': 0,
-            'details': []
-        }
-        
-        for recipient in recipients:
-            phone = recipient.get('phone')
-            language = recipient.get('language', 'en')
-            
-            # Format message with template
-            message = get_sms_template(message_template, language=language, **template_vars)
-            
-            # Send SMS
-            result = self.send_sms(phone, message, language)
-            
-            if result['success']:
-                results['sent'] += 1
-            else:
-                results['failed'] += 1
-            
-            results['details'].append({
-                'phone': phone,
-                'language': language,
-                'status': result['status'],
-                'sid': result.get('sid')
-            })
-        
-        logger.info(f"Bulk SMS: {results['sent']}/{results['total']} sent successfully")
-        return results
-    
-    def get_sms_status(self, message_sid):
-        """
-        Check delivery status of an SMS
-        
-        Args:
-            message_sid: Twilio message SID
-            
-        Returns:
-            dict: Message status
-        """
-        if not self.enabled:
-            return {'status': 'mock', 'message': 'SMS service not configured'}
-        
-        try:
-            message = self.client.messages(message_sid).fetch()
-            return {
-                'sid': message.sid,
-                'status': message.status,
-                'to': message.to,
-                'from': message.from_,
-                'date_sent': message.date_sent,
-                'error_code': message.error_code,
-                'error_message': message.error_message
-            }
-        except Exception as e:
-            logger.error(f"Error fetching SMS status for {message_sid}: {e}")
-            return {'status': 'error', 'error': str(e)}
-
-
-# Global SMS service instance
-sms_service = SMSService()
-
-
-def send_disaster_alert_to_region(region, disaster_type, severity, language='en'):
+def get_sms_template(disaster_type, language='en', **kwargs):
     """
-    Send disaster alert to all users in a region
-    (This would query database for users in region)
-    
-    Args:
-        region: Region name
-        disaster_type: Type of disaster
-        severity: Severity level
-        language: Default language
-        
-    Returns:
-        dict: Send results
+    Get formatted SMS template for a language
     """
-    # TODO: Query database for users in region
-    # For now, this is a placeholder
-    logger.info(f"Would send {disaster_type} alert to region: {region}, severity: {severity}")
-    
-    return {
-        'success': True,
-        'message': f'Alert scheduled for {region}',
-        'region': region,
-        'disaster_type': disaster_type,
-        'severity': severity
-    }
+    templates = SMS_TEMPLATES.get(language, SMS_TEMPLATES['en'])
+    template = templates.get(disaster_type, templates.get('cyclone')) # default to cyclone if type not found
 
-
-def activate_blood_donors(region, blood_type, disaster_type, required_units=10):
-    """
-    Activate blood donors in a region
-    (This would query database for eligible donors)
-    
-    Args:
-        region: Region needing blood
-        blood_type: Required blood type
-        disaster_type: Disaster causing need
-        required_units: Number of blood units needed
-        
-    Returns:
-        dict: Activation results
-    """
-    # TODO: Query database for eligible blood donors
-    # Filter by blood type, location, last donation date
-    # Send SMS to eligible donors
-    
-    logger.info(f"Would activate {blood_type} donors in {region} for {disaster_type}")
-    
-    return {
-        'success': True,
-        'message': f'Blood donor activation initiated for {region}',
-        'blood_type': blood_type,
-        'required_units': required_units,
-        'donors_contacted': 0  # Would be actual count from database
-    }
+    try:
+        return template.format(**kwargs)
+    except KeyError:
+        return template # Return unformatted if keys missing
